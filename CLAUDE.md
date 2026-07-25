@@ -49,26 +49,29 @@ A lefthook pre-commit hook runs on every commit, configured in `lefthook.yml`.
 Fresh clones must run `uv run lefthook install` — cloning a repo does not
 install its hooks.
 
-Two jobs run in parallel; either one failing aborts the commit:
+Two jobs run **sequentially** (`piped: true`), stopping at the first failure:
 
-- `ruff-lint` — lints staged Python files, auto-fixing with `--fix` and
-  re-staging the fixes via `stage_fixed`.
-- `ty-check` — runs `ty check` over the **whole project**, not just staged
-  files, because type errors are cross-file and a narrower check would miss
-  them.
+1. `ty-check` — `ty check` on the staged Python files.
+2. `ruff-lint` — lints those files, auto-fixing with `--fix` and re-staging
+   the fixes via `stage_fixed`.
+
+The order is deliberate. Ruff runs with `--fix`, so if it ran alongside a
+failing type check it would rewrite files on disk for a commit that then gets
+rejected. Types first means **a rejected commit leaves your working tree
+untouched**.
+
+Both jobs pass `{staged_files}`, but ty still follows imports out of them — a
+staged file that misuses something from an unstaged module is caught. What it
+won't catch is the reverse: changing a signature in a staged file while its
+callers, unstaged, go stale. Run `uv run ty check` yourself for a whole-project
+sweep.
 
 `git commit --no-verify` bypasses the gate deliberately — use it as the
 escape hatch when you need to commit through a failure.
 
-Two gotchas surfaced during testing, both worth knowing before they surprise
-you:
-
-- Because ruff runs with `--fix`, a **rejected** commit can still leave your
-  working files modified on disk. If `ty-check` blocks the commit after
-  `ruff-lint` already ran, ruff's auto-fixes have already been applied — a
-  failed commit does not mean an untouched working tree.
-- Because `ty-check` is project-wide, a type error in **any** file — even
-  one you didn't touch or stage — will block your commit.
+`.lefthookrc` pins the hook to the lefthook in `uv.lock`. Without it the
+generated hook probes bare `lefthook` on `$PATH` first and would run whatever
+version happens to be installed system-wide.
 
 ### Working style
 

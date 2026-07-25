@@ -75,15 +75,21 @@ Full notes in [`ai_research/0001-precommit-gate/`](../../ai_research/0001-precom
   `uv sync` can start blocking commits on untouched code. Pinning makes each
   upgrade a deliberate, reviewable commit. Rejected `--exit-zero` advisory mode
   as not actually a gate. *(confirmed)*
-- **Ruff on staged files, ty on the whole project:** type errors are cross-file
-  — changing a signature breaks callers that are not staged — so checking ty
-  against a staged subset would miss exactly the errors that matter. Ruff's
-  rules are per-file, so staged-only is both correct and fast. *(confirmed)*
+- ~~**Ruff on staged files, ty on the whole project:**~~ **superseded
+  2026-07-25.** The premise — that scoping ty to staged files "would miss
+  exactly the errors that matter" — turned out to be false. Testing showed
+  `ty check <file>` follows imports and reports cross-file errors; only
+  *downstream* breakage in unstaged callers is missed. Both jobs now take
+  `{staged_files}`, so an unrelated broken file no longer blocks every commit.
+  See [`ty-type-checker.md`](../../ai_research/0001-precommit-gate/ty-type-checker.md).
 - **Ruff auto-fixes and re-stages** (`--fix` with `stage_fixed: true`) rather
   than reporting and blocking. Fewer interruptions on trivial violations. The
   trade-off, accepted knowingly: the commit's contents change after staging, so
   what lands is not exactly what was staged. Task 6 characterizes the partial
   staging edge case. *(confirmed — chosen over the report-only recommendation)*
+  **Amended 2026-07-25:** kept, but the jobs are now `piped` with `ty-check`
+  first rather than parallel. Auto-fix survives; what's gone is ruff rewriting
+  files for a commit that then gets rejected.
 - **`ruff format` excluded:** linting and formatting are separable, and adding
   a formatter would rewrite staged content more aggressively than the lint
   fixes already accepted. Can be added later. *(confirmed via scope choice)*
@@ -210,36 +216,34 @@ Full notes in [`ai_research/0001-precommit-gate/`](../../ai_research/0001-precom
   weighed against does not materialize. Recorded in
   [`lefthook.md`](../../ai_research/0001-precommit-gate/lefthook.md) **Caveats**.
 
-- **A rejected commit still mutates your working files.** Not anticipated by
-  this spec. `ruff-lint` and `ty-check` run in parallel, so ruff's `--fix`
-  rewrites files on disk even when ty subsequently blocks the commit.
-  Confirmed directly: `import os` was stripped from the test file despite the
-  commit being rejected. A failed commit does not mean an untouched working
-  tree. Documented in `CLAUDE.md`.
+- ~~**A rejected commit still mutates your working files.**~~ **Fixed
+  2026-07-25.** Was: `ruff-lint` and `ty-check` ran in parallel, so ruff's
+  `--fix` rewrote files even when ty blocked the commit. Now `piped: true`
+  with `ty-check` first — ruff reports `(skip) broken pipe` and never runs on
+  a failing commit. Verified: `import os` survived a rejected commit that
+  previously stripped it.
 
-- **The installed hook runs ambient lefthook, not the pinned one.** The
-  *defaulted* decision above claims pinning lefthook in `pyproject.toml`
-  "keeps the whole toolchain in `uv.lock`". That is true for `uv run
-  lefthook` (2.1.10) but **not** for the hook itself: `.git/hooks/pre-commit`
-  probes bare `lefthook` on `$PATH` before the venv copy and long before
-  `uv run lefthook`, so it executed the ambient 2.1.9 during testing. The
-  reproducibility claim is weaker than stated. Harmless at a 2.1.9/2.1.10
-  gap; worth revisiting if hook behavior ever diverges by version. See
-  **Open questions**.
+- ~~**The installed hook runs ambient lefthook, not the pinned one.**~~
+  **Fixed 2026-07-25.** Was: `.git/hooks/pre-commit` probes bare `lefthook` on
+  `$PATH` before the venv copy, so ambient 2.1.9 beat the pinned 2.1.10.
+  Now `.lefthookrc` (referenced as `rc: ./.lefthookrc`) exports `LEFTHOOK_BIN`,
+  which the hook checks first. Verified: the banner reports v2.1.10. The `./`
+  prefix is required — POSIX `.` doesn't search the working directory.
+
+- ~~**`ty-check` project-wide scope blocks unrelated commits.**~~ **Fixed
+  2026-07-25.** The decision rested on a false premise; see the struck-through
+  entry in **Decisions**. Both jobs now take `{staged_files}`. Verified both
+  directions: a staged file misusing an unstaged module is still caught, and
+  an unrelated broken file no longer blocks a clean commit.
 
 ## Open questions
 
-- Should the hook be forced onto the pinned lefthook? Options: set
-  `core.hooksPath` to a custom shim, or accept the fallback chain as-is. Left
-  as-is for now — the version gap is trivial and the fallback means the gate
-  still works on a machine with no ambient lefthook, which is the case that
-  actually matters for reproducibility.
 - ty 0.0.63 still has not run against real code — the repo has no Python
   files, so the gate has only ever seen throwaway test files. The first
   substantive experiment may surface diagnostics that make the default
   warning-blocks-commit behavior too strict; `--exit-zero-on-warning` is the
   pressure valve if so.
-- `ty-check`'s project-wide scope means a type error in *any* file blocks
-  *every* commit, including unrelated ones. This is the intended trade for
-  catching cross-file breakage, and it bit during testing (an unrelated
-  throwaway file blocked a commit). Revisit if it becomes obstructive.
+- Scoping ty to staged files means **downstream** breakage is missed: change a
+  signature in a staged file and its unstaged callers go stale unnoticed. A
+  `pre-push` hook running whole-project `ty check` would close that gap
+  without slowing every commit. Not built — deliberately out of scope here.

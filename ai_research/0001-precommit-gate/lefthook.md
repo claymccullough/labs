@@ -102,6 +102,31 @@ at the repo root. Ruff runs against `{staged_files}` with `stage_fixed: true`;
 ty runs with no file variable so it sees the whole project. See the spec's
 **Decisions**.
 
+## Follow-up findings (2026-07-25, after first real use)
+
+Three behaviors surfaced in use and changed the config. All verified by running
+real commits, not read from docs.
+
+**`piped: true` beats `parallel: true` when one job mutates files.** Docs:
+"Stop running commands and scripts if one of them fail," and lefthook errors if
+both `piped` and `parallel` are set. With jobs parallel, ruff's `--fix` rewrote
+files on disk even when the type check failed and the commit was rejected — a
+failed commit silently mutated the working tree. Ordering `ty-check` before
+`ruff-lint` under `piped` fixes it: ruff reports `(skip) broken pipe` and never
+runs. Confirmed: `import os` survived a rejected commit that previously stripped it.
+
+**`LEFTHOOK_BIN` is the only reliable way to pin the hook's own binary.** The
+generated `.git/hooks/pre-commit` resolves lefthook in this order:
+`$LEFTHOOK_BIN` → bare `lefthook` on `$PATH` → the venv copy → various node/ruby
+paths. So a system-wide install silently wins over the pinned one — observed
+running 2.1.9 when `uv.lock` pinned 2.1.10. Setting `LEFTHOOK_BIN` from an `rc`
+script fixes it; the hook banner then reports 2.1.10.
+
+**The `rc` path needs a `./` prefix.** The hook emits `. <rc>` verbatim, and
+POSIX `.` does not search the working directory. `rc: .lefthookrc` fails with
+`.lefthookrc: not found`; `rc: ./.lefthookrc` works. The docs only show absolute
+paths and `~/`-relative ones, so this isn't covered there.
+
 ## Caveats
 
 - **Partial staging + `stage_fixed`, tested 2026-07-25 (Lefthook 2.1.9): safe.**
