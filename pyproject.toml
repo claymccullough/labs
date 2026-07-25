@@ -1,0 +1,12 @@
+[project]
+name = "labs"
+version = "0.1.0"
+description = "Personal Python labs space for experiments"
+requires-python = ">=3.14"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8.0",
+    "pytest>=8.0.0",
+]
