@@ -1,0 +1,32 @@
+# Sets LEFTHOOK_BIN so the hook runs the lefthook pinned in uv.lock rather than
+# whatever is on $PATH. See .lefthookrc.
+rc: ./.lefthookrc
+
+pre-commit:
+  # Sequential, stopping at the first failure — NOT parallel. Order matters:
+  # ruff runs with --fix, so if it ran alongside a failing ty-check it would
+  # rewrite files on disk for a commit that then gets rejected. Checking types
+  # first means a rejected commit leaves the working tree untouched.
+  piped: true
+  jobs:
+    - name: ty-check
+      glob: "*.py"
+      run: uv run ty check {staged_files}
+    - name: ruff-lint
+      glob: "*.py"
+      run: uv run ruff check --fix {staged_files}
+      stage_fixed: true
+
+pre-push:
+  # Closes the gap the staged-file scope leaves open. `ty check {staged_files}`
+  # follows imports *out* of the staged files, so it catches a staged file
+  # misusing the rest of the codebase — but not the reverse: change a signature
+  # and its callers, unstaged, go stale unnoticed.
+  #
+  # No file variable here, so ty checks the whole project. Nothing broken
+  # reaches the remote, and the cost lands on push (rare) rather than on every
+  # commit. No glob: a commit touching zero Python can still break a caller.
+  piped: true
+  jobs:
+    - name: ty-check-project
+      run: uv run ty check

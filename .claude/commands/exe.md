@@ -1,5 +1,5 @@
 ---
-description: Execute a spec from the prompts folder
+description: Execute a spec from the prompts folder via Sonnet subagents
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, TaskCreate, TaskUpdate, WebSearch, WebFetch, AskUserQuestion
 ---
 
@@ -41,26 +41,62 @@ Spec to execute (number, slug, or empty for the most recent): $ARGUMENTS
 4. Track the tasks. Use TaskCreate/TaskUpdate for multi-step specs so
    progress is visible. Mark tasks complete as you finish them.
 
-5. Implement, one task at a time.
-   - Match the conventions of the surrounding code.
-   - Build only what the spec asks for. If you find adjacent problems, note
-     them for later instead of fixing them mid-stream.
-   - If a task turns out to be wrong or blocked, stop and explain rather
-     than inventing a workaround.
+5. **Implement by delegating to Sonnet subagents — one per task, in order.**
+   Do not write the implementation yourself. Your job here is orchestration:
+   scope each task, dispatch it, check what came back.
 
-6. Run the **Verification** checks. Run them for real and paste the actual
-   output. If one fails, fix it and re-run. If you can't, say exactly what
-   failed and why — never report a check as passing when it wasn't run.
+   For each task in the spec, in order:
+
+   - Spawn a subagent with the `Task` tool, `model: "sonnet"` and
+     `subagent_type: "general-purpose"`. Every task gets a fresh agent.
+   - Run them **sequentially**, not in parallel. Later tasks usually depend on
+     earlier ones, and concurrent agents editing shared files conflict.
+   - **The subagent shares none of your context.** Its prompt must stand
+     alone. Include: the spec path and the task's exact text, the relevant
+     **Decisions** and **Research** findings (or the paths to read), the files
+     it may touch, the repo conventions it must follow (`uv run` for all
+     Python, never `pip` or bare `python`), what earlier tasks already changed,
+     and what "done" means for this task specifically.
+   - Tell it to report back what it changed, what it could not do, and
+     anything it found that contradicts the spec. Instruct it not to commit,
+     push, or work beyond its task.
+
+   After each subagent returns:
+   - **Check the work rather than trusting the report.** Read the files it
+     claims to have changed. A subagent reporting success is evidence, not
+     proof.
+   - If it went wrong or overreached, correct it — either directly for a small
+     fix, or by dispatching a follow-up agent with sharper scope.
+   - Mark the task complete and pass forward what the next agent needs.
+
+   If a task turns out to be wrong or blocked, stop and explain rather than
+   letting an agent invent a workaround. If a subagent reports something that
+   contradicts the spec, treat that as a real finding worth surfacing.
+
+6. **Run the Verification checks yourself.** Do not delegate this — the agents
+   that wrote the code are the wrong ones to grade it. Run each check for
+   real and paste the actual output. If one fails, fix it (directly or via
+   another subagent) and re-run. If you can't, say exactly what failed and
+   why — never report a check as passing when it wasn't run.
 
 7. Update the spec: set `**Status:**` to `done` (or `partial`), and tick the
    task and verification boxes that genuinely passed.
 
 8. Report: what changed, what verification showed, what was left undone and
-   why. Don't commit — the user runs `/cp` when ready.
+   why. Note anything a subagent got wrong that needed correcting — that's
+   signal about how to scope the next one. Don't commit — the user runs `/cp`
+   when ready.
+
+9. If the user made any decision during execution — a correction, a choice
+   between approaches, an override of the spec — record it in `decisions/`
+   per `decisions/README.md`.
 
 ## Conventions
 
 - Read `CLAUDE.md` and follow it.
+- Check `decisions/` before asking the user anything. A logged preference is
+  a default to apply, not a question to ask again.
+- All implementation runs through Sonnet subagents. Verification is yours.
 - Use `uv` for everything Python (`uv run`, `uv add`). Never `pip` or bare
   `python`.
 - Don't commit, push, or otherwise take outward-facing actions on your own.

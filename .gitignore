@@ -111,3 +111,6 @@ __marimo__/
 # Project-specific: experiment data, kept out of version control
 /data/*
 !/data/.gitkeep
+
+# Lefthook
+lefthook-local.yml

@@ -1,0 +1,27 @@
+#!/bin/sh
+# Sourced by lefthook before hooks run (referenced as `rc:` in lefthook.yml).
+#
+# Point the hook at the lefthook pinned in uv.lock. Without this, the generated
+# .git/hooks/pre-commit probes bare `lefthook` on $PATH before the venv copy, so
+# whatever version happens to be installed system-wide wins over the pinned one.
+# LEFTHOOK_BIN is checked first in that chain, so setting it here settles it.
+#
+# Resolved by glob rather than a literal path: the site-packages directory
+# carries the Python minor version and the binary directory carries the
+# platform, and neither is ours to hardcode.
+#
+# Falls through silently when no venv binary is found (e.g. before `uv sync`).
+# The hook's own fallback chain then applies, which beats failing outright.
+
+_lh_root="$(git rev-parse --show-toplevel 2>/dev/null)"
+
+if [ -n "$_lh_root" ]; then
+  for _lh_candidate in "$_lh_root"/.venv/lib/python*/site-packages/lefthook/bin/*/lefthook; do
+    if [ -x "$_lh_candidate" ]; then
+      export LEFTHOOK_BIN="$_lh_candidate"
+      break
+    fi
+  done
+fi
+
+unset _lh_root _lh_candidate

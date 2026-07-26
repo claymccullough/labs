@@ -100,6 +100,12 @@ Change to spec out: $ARGUMENTS
    Ground these in step 5's findings — a library choice presented without
    what the research turned up is a guess wearing a recommendation's clothes.
 
+   **Check `decisions/` first.** Past choices are logged there. If one already
+   settles a question, apply it as a default and say you're doing so rather
+   than asking again — re-asking a settled question wastes the log's purpose.
+   Ask only when the decision is genuinely new, or when this context differs
+   from the one the old decision was made in.
+
    Then, before writing:
    - Present each decision with the realistic options, the trade-off, and your
      recommendation with reasoning. Be concrete about consequences.
@@ -107,6 +113,9 @@ Change to spec out: $ARGUMENTS
      option first, labeled `(Recommended)`.
    - If you find no such decision, say so explicitly and name the default you
      are proceeding with. Don't claim there are none just to skip the step.
+   - **Log every answer** to `decisions/` per `decisions/README.md`, one file
+     per decision. Record overrides of your recommendation especially — those
+     carry more signal than agreements.
 
    Genuinely trivial or conventional choices don't need a question — decide
    them, and record them in **Decisions** so they're visible and reversible.

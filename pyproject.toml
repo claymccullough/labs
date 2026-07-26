@@ -9,4 +9,6 @@ dependencies = []
 dev = [
     "ruff>=0.8.0",
     "pytest>=8.0.0",
+    "lefthook>=2.1.10",
+    "ty==0.0.63",
 ]
