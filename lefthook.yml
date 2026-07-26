@@ -16,3 +16,17 @@ pre-commit:
       glob: "*.py"
       run: uv run ruff check --fix {staged_files}
       stage_fixed: true
+
+pre-push:
+  # Closes the gap the staged-file scope leaves open. `ty check {staged_files}`
+  # follows imports *out* of the staged files, so it catches a staged file
+  # misusing the rest of the codebase — but not the reverse: change a signature
+  # and its callers, unstaged, go stale unnoticed.
+  #
+  # No file variable here, so ty checks the whole project. Nothing broken
+  # reaches the remote, and the cost lands on push (rare) rather than on every
+  # commit. No glob: a commit touching zero Python can still break a caller.
+  piped: true
+  jobs:
+    - name: ty-check-project
+      run: uv run ty check
