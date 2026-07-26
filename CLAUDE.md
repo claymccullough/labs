@@ -60,11 +60,16 @@ failing type check it would rewrite files on disk for a commit that then gets
 rejected. Types first means **a rejected commit leaves your working tree
 untouched**.
 
-Both jobs pass `{staged_files}`, but ty still follows imports out of them — a
-staged file that misuses something from an unstaged module is caught. What it
-won't catch is the reverse: changing a signature in a staged file while its
-callers, unstaged, go stale. Run `uv run ty check` yourself for a whole-project
-sweep.
+Both jobs pass `{staged_files}`, and ty still follows imports out of them — a
+staged file that misuses something from an unstaged module is caught.
+
+The reverse — changing a signature while its callers go stale — is caught at
+**push** instead. `pre-push` runs `ty check` across the whole project with no
+file variable, so nothing broken reaches the remote. The expensive check runs
+when you push (rare) rather than on every commit.
+
+So: fast scoped checks on commit, a full sweep before anything leaves the
+machine. `git push --no-verify` bypasses it if you need to.
 
 `git commit --no-verify` bypasses the gate deliberately — use it as the
 escape hatch when you need to commit through a failure.

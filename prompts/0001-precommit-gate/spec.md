@@ -236,6 +236,14 @@ Full notes in [`ai_research/0001-precommit-gate/`](../../ai_research/0001-precom
   directions: a staged file misusing an unstaged module is still caught, and
   an unrelated broken file no longer blocks a clean commit.
 
+- ~~**Downstream breakage is missed.**~~ **Fixed 2026-07-25.** Was: scoping ty
+  to staged files meant a signature change could land with stale unstaged
+  callers. Now a `pre-push` hook runs whole-project `ty check` with no file
+  variable, so nothing broken reaches the remote. Verified end to end: the
+  commit passed (reproducing the gap) while the push was **rejected** with
+  `missing-argument`, naming both the call site and the changed signature;
+  the push succeeded once the caller was fixed.
+
 ## Open questions
 
 - ty 0.0.63 still has not run against real code — the repo has no Python
@@ -243,7 +251,3 @@ Full notes in [`ai_research/0001-precommit-gate/`](../../ai_research/0001-precom
   substantive experiment may surface diagnostics that make the default
   warning-blocks-commit behavior too strict; `--exit-zero-on-warning` is the
   pressure valve if so.
-- Scoping ty to staged files means **downstream** breakage is missed: change a
-  signature in a staged file and its unstaged callers go stale unnoticed. A
-  `pre-push` hook running whole-project `ty check` would close that gap
-  without slowing every commit. Not built — deliberately out of scope here.

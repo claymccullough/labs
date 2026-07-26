@@ -107,6 +107,17 @@ scoped ty catches what a staged file gets wrong about the rest of the codebase,
 but not what the rest of the codebase gets wrong about a staged file. In
 exchange, a type error in an unrelated file no longer blocks every commit.
 
+**The downstream half is covered at push time.** A `pre-push` job runs
+`ty check` with no file argument (whole project), so the two hooks together
+leave no gap: scoped-and-fast on commit, exhaustive before anything leaves the
+machine. Verified by changing a signature while staging only the definition —
+the commit passed, the push was rejected with `missing-argument` pointing at
+the stale caller, and the push succeeded once it was fixed.
+
+Worth knowing for anyone reusing this pattern: `ty check` with no path argument
+on a repo containing no Python emits `WARN No python files found under the
+given path(s)` and still exits 0, so an empty project does not block pushes.
+
 ## Caveats
 
 - **Beta, pre-1.0.** Expect diagnostic churn on every bump. Re-read the ty
